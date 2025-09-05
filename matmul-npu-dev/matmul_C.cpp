@@ -1,8 +1,6 @@
 #include "/home/orangepi/Documents/Projects/matmul-npu-dev/include/matrix_types/opencv_mat.hpp"
 #include "/home/orangepi/Documents/Projects/matmul-npu-dev/include/matrix_types/matrix.hpp"
 
-#include "wrapper.h"
-
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -19,33 +17,8 @@
 #include <typeinfo>
 #include <opencv2/opencv.hpp>
 
-int CV_a = CV_8S;
-int CV_b = CV_8S;
-int CV_c = CV_32S;
-
-void print_A_cv(Ta* a, int m, int n) 
-{
-	MatNpu A(m, n, CV_a, a);
-	
-	std::cout << A << "\n";
-}
-
-void print_C_cv(Tc* c, int m, int n) 
-{
-	MatNpu C(m, n, CV_c, c);
-		
-	std::cout << C << "\n";
-}
-
-void c_comp(Tc* c1, Tc* c2, int m, int n) 
-{
-	MatNpu C_1(m, n, CV_c, c1);
-	MatNpu C_2(m, n, CV_c, c2);
-	
-	std::cout << "Diff Norm: " << cv::norm(C_1 - C_2, cv::NORM_L2) << "\n";
-}
-
 void fill_mult(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_native)
+
 {
 
 	Matrix<Ta> A(m, k, a);
@@ -121,20 +94,18 @@ void fill_mult_irreg(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, b
 }
 
 
-void fill_mult_cplx(Ta* a_r, Ta* a_i, Tb** b_r, Tb** b_i, Tc* c_r, Tc* c_i, 
-				int m, int k, int* n, int n_size, bool AC_native, bool B_native)
+void fill_mult_cplx(Ta* a_r, Ta* a_i, std::vector<Tb*> b_r, std::vector<Tb*> b_i, Tc* c_r, Tc* c_i, 
+				int m, int k, std::vector<int> n, bool AC_native, bool B_native)
 {
 	int n_sum = n[0];
 	cv::Mat B_r_final = cv::Mat(k, n[0], CV_b, b_r[0]);
 	cv::Mat B_i_final = cv::Mat(k, n[0], CV_b, b_i[0]);
 
-	for (int i = 1; i < n_size; i ++) {
+	for (int i = 1; i < (int) n.size(); i ++) {
 		n_sum += n[i];
 		cv::hconcat(B_r_final, cv::Mat(k, n[i], CV_b, b_r[i]), B_r_final);
 		cv::hconcat(B_i_final, cv::Mat(k, n[i], CV_b, b_i[i]), B_i_final);
 	}
-	
-//	std::cout << B_r_final << "\n" << B_i_final << "\n";
 	
 	Tc* A_rB_r = (Tc*) malloc(m * n_sum * sizeof(Tc));
 	Tc* A_rB_i = (Tc*) malloc(m * n_sum * sizeof(Tc));
@@ -164,3 +135,16 @@ void fill_mult_cplx(Ta* a_r, Ta* a_i, Tb** b_r, Tb** b_i, Tc* c_r, Tc* c_i,
 	thr.clear();
 }
 
+
+template <typename T, typename U>
+void fill_random(T* data, int m, int n, U min, U max)
+{
+    using Dist = std::uniform_real_distribution<double_t>;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    Dist dis(min, max);
+    for (int i = 0; i < m*n; i ++)
+    {
+        data[i] = static_cast<T>(dis(gen));
+    }
+}

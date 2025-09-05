@@ -10,14 +10,6 @@
 using float16 = half_float::half;
 typedef float float32;
 
-typedef int8_t Ta;
-typedef int8_t Tb;
-typedef int32_t Tc;
-
-int CV_a = CV_8S;
-int CV_b = CV_8S;
-int CV_c = CV_32S;
-
 int A_subK = 16;
 int B_subN = 32;
 int B_subK = 32;
@@ -237,7 +229,7 @@ _rknn_matmul_type choose_matmul_type() {
         std::is_same<int32_t, To>::value)  {
         return RKNN_INT8_MM_INT8_TO_INT32;
     } else {
-        std::cout << "a unsupported combination of types:\n";
+        std::cout << "an unsupported combination of types:\n";
         std::cout << "please enter types from avilable types\n";
         std::cout << "1. float16, float16, float16\n";
         std::cout << "2. float16, float16, float32\n";
@@ -368,24 +360,54 @@ void free_matmul(_matmul_ctx* ctx) {
  */
 template<typename To, typename Ti1, typename Ti2> 
 tensor_result matmul_npu(
-    uint32_t num_rows_a,
-    uint32_t num_cols_a,
-    uint32_t num_cols_b,
+    uint32_t m,
+    uint32_t k,
+    uint32_t n,
     Ti1* a,
     Ti2* b,
 	bool AC_native,
 	bool B_native
 ) {
-
+	Ti1* a_intend = a;
+	Ti2* b_intend = b;
+	
+	Ti1* a_perf = 0;
+	Ti2* b_perf = 0;
+	
+	if (AC_native) {
+		a_perf = (Ti1*) malloc(m * k * sizeof(Ti1));
+		norm_layout_to_perf_layout(a, a_perf, m, k, A_subK, A_int4);
+		a_intend = a_perf;
+	}
+	if (B_native) {
+		b_perf = (Ti2*) malloc(k * n * sizeof(Ti2));
+		norm_layout_to_native_layout(b, b_perf, k, n, B_subN, B_subK, B_int4);
+		b_intend = b_perf;
+	}
+	
     _matmul_ctx* ctx = make_matmul(
-        num_rows_a, num_cols_a, num_cols_b, choose_matmul_type<To, Ti1, Ti2>(), AC_native, B_native
+        m, k, n, choose_matmul_type<To, Ti1, Ti2>(), AC_native, B_native
     );
 
-    set_matrix_data(&ctx->ctx, ctx->matrixA, &ctx->io_attr.A, a);
-    set_matrix_data(&ctx->ctx, ctx->matrixB, &ctx->io_attr.B, b);
+    set_matrix_data(&ctx->ctx, ctx->matrixA, &ctx->io_attr.A, a_intend);
+    set_matrix_data(&ctx->ctx, ctx->matrixB, &ctx->io_attr.B, b_intend);
     rknn_matmul_run(ctx->ctx);
 
     tensor_result result(ctx->ctx, ctx->matrixC);
+    
+	if (AC_native) {
+		To* tmp = (To*) malloc(m * n * sizeof(To));
+		perf_layout_to_norm_layout((To*) result.resultMatrix->virt_addr, tmp, m, n, C_subN);
+		memcpy((To*) result.resultMatrix->virt_addr, tmp, m*n*sizeof(To));
+		free(tmp);
+
+	}
+	if (AC_native) {
+		free(a_perf);
+	}
+	if (B_native) { 
+		free(b_perf);
+	}
     free_matmul(ctx);
 
     return result;
@@ -408,29 +430,45 @@ tensor_result matmul_npu(
  * @note The shape of the result is (num_rows_a, num_cols_b)
  */
 tensor_result matmul_npu(
-    uint32_t num_rows_a,
-    uint32_t num_cols_a,
-    uint32_t num_cols_b,
+    uint32_t m,
+    uint32_t k,
+    uint32_t n,
     _rknn_matmul_type type,
     void* a,
     void* b,
 	bool AC_native,
 	bool B_native
 ) {
-
-    _matmul_ctx* ctx = make_matmul(
-        num_rows_a, num_cols_a, num_cols_b, type, AC_native, B_native
-    );
-
-    set_matrix_data(&ctx->ctx, ctx->matrixA, &ctx->io_attr.A, a);
-    set_matrix_data(&ctx->ctx, ctx->matrixB, &ctx->io_attr.B, b);
-    rknn_matmul_run(ctx->ctx);
-
-    tensor_result result(ctx->ctx, ctx->matrixC);
-    free_matmul(ctx);
-
-    return result;
-
+	
+	if (type == RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT16) {
+		return matmul_npu<float16, float16, float16>(
+                m, k, n, (float16*) a, (float16*) b, AC_native, B_native);
+	} else if (type == RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32) {
+		return matmul_npu<float32, float16, float16>(
+                m, k, n, (float16*) a, (float16*) b, AC_native, B_native);
+	}		
+	else if (type == RKNN_FLOAT16_MM_INT8_TO_FLOAT16) {
+		return matmul_npu<float16, float16, int8_t>(
+                m, k, n, (float16*) a, (int8_t*) b, AC_native, B_native);
+	}
+	else if (type == RKNN_INT8_MM_INT8_TO_INT8) {
+		return matmul_npu<int8_t, int8_t, int8_t>(
+                m, k, n, (int8_t*) a, (int8_t*) b, AC_native, B_native);
+	}
+	else if (type == RKNN_INT8_MM_INT8_TO_INT32) {
+		return matmul_npu<int32_t, int8_t, int8_t>(
+                m, k, n, (int8_t*) a, (int8_t*) b, AC_native, B_native);
+	}
+	else {
+        std::cout << "an unsupported combination of types:\n";
+        std::cout << "please enter types from avilable types\n";
+        std::cout << "1. float16, float16, float16\n";
+        std::cout << "2. float16, float16, float32\n";
+        std::cout << "3. float16, int8_t, float16\n";
+        std::cout << "4. int8_t, int8_t, int8_t\n";
+        std::cout << "4. int8_t, int8_t, int32_t\n";
+        abort();
+	}
 }
 
 

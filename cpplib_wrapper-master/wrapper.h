@@ -28,7 +28,11 @@ typedef int8_t Ta;
 typedef int8_t Tb;
 typedef int32_t Tc;
 
-void print_cv(Tc* c1, Tc* c2, int m, int n);
+void print_A_cv(Ta* a, int m, int n);
+
+void print_C_cv(Tc* c1, int m, int n);
+
+void c_comp(Tc* c, Tc* c2, int m, int n);
 
 void fill_mult(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_native);
 

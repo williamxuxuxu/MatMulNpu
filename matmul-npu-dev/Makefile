@@ -35,7 +35,10 @@ opencv: example_opencv.cpp
 	
 matmul: matmul.cpp
 	$(CXX) matmul.cpp -o matmul $(CXX_INCLUDE_FLAGS) $(CXX_LIB_FLAGS) $(CXXFLAGS)
+	
+matmul_C: matmul.cpp
+	$(CXX) -c matmul_C.cpp -o matmul_C.o $(CXX_INCLUDE_FLAGS) $(CXX_LIB_FLAGS) $(CXXFLAGS)
 # Define the rule to clean up generated files
 .PHONY: clean
 clean:
-	rm -f example test opencv 
+	rm -f example test opencv matmul matmul_C

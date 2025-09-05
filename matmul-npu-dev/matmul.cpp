@@ -20,82 +20,21 @@
 void fill_mult(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_native)
 
 {
-/*
-	Ta* a_intend = a;
-	Tb* b_intend = b;
-	Ta* a_perf = 0;
-	Tb* b_perf = 0;
-	
-	if (AC_native) {
-		a_perf = (Ta*) malloc(m * k * sizeof(Ta));
-		norm_layout_to_perf_layout(a, a_perf, m, k, A_subK, A_int4);
-		a_intend = a_perf;
-	}
-	if (B_native) {
-		b_perf = (Tb*) malloc(k * n * sizeof(Tb));
-		norm_layout_to_native_layout(b, b_perf, k, n, B_subN, B_subK, B_int4);
-		b_intend = b_perf;
-	}
-*/
+
 	Matrix<Ta> A(m, k, a);
 	Matrix<Tb> B(k, n, b);
 	Matrix<Tc> C = A.matmul<Tc>(B, AC_native, B_native);
-/*
-	if (AC_native) {
-		perf_layout_to_norm_layout(C.data, c, m, n, C_subN);
-	}
-	else {
-	*/
-		memcpy(c, C.data, m*n*sizeof(Tc));
-		/*
-	}
-	if (AC_native) {
-		free(a_perf);
-	}
-	if (B_native) { 
-		free(b_perf);
-	}
-	*/
+
+	memcpy(c, C.data, m*n*sizeof(Tc));
 }
 
 void fill_mult_CV(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_native)
 {
-	/*
-	Ta* a_intend = a;
-	Tb* b_intend = b;
-	Ta* a_perf = 0;
-	Tb* b_perf = 0;
-	
-	if (AC_native) {
-		a_perf = (Ta*) malloc(m * k * sizeof(Ta));
-		norm_layout_to_perf_layout(a, a_perf, m, k, A_subK, A_int4);
-		a_intend = a_perf;
-	}
-	if (B_native) {
-		b_perf = (Tb*) malloc(k * n * sizeof(Tb));
-		norm_layout_to_native_layout(b, b_perf, k, n, B_subN, B_subK, B_int4);
-		b_intend = b_perf;
-	}
-*/
 	MatNpu A(m, k, CV_a, a);
 	MatNpu B(k, n, CV_b, b);
 	MatNpu C = A.matmul(B, CV_c, AC_native, B_native);
-/*
-	if (AC_native) {
-		perf_layout_to_norm_layout((Tc*) C.data, c, m, n, C_subN);
-	}
-	else {
-	*/
-		memcpy(c, C.data, m*n*sizeof(Tc));
-		/*
-	}
-	if (AC_native) {
-		free(a_perf);
-	}
-	if (B_native) { 
-		free(b_perf);
-	}
-	*/
+
+	memcpy(c, C.data, m*n*sizeof(Tc));
 }
 
 void fill_mult_naive(Ta* a, Tb* b, Tc* c, int m, int k, int n)
@@ -110,7 +49,6 @@ void fill_mult_naive(Ta* a, Tb* b, Tc* c, int m, int k, int n)
         }
 	}
 }
-
 
 void fill_mult_irreg(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_native)
 {
