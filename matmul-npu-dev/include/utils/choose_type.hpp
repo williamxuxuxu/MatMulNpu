@@ -4,10 +4,6 @@
 #include </home/orangepi/Documents/Projects/rknn-toolkit2/rknpu2/runtime/Linux/librknn_api/include/rknn_matmul_api.h>
 #include <opencv2/opencv.hpp>
 
-typedef half_float::half float16;
-typedef float float32;
-
-
 _rknn_matmul_type choose_matmul_type(int input1, int input2, int output) {
     
     if (

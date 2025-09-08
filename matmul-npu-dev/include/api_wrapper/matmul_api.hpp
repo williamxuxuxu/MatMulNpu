@@ -7,20 +7,28 @@
 #include <cstring>
 #include "/home/orangepi/Documents/Projects/matmul-npu-dev/include/utils/half.hpp"
 
+// Defines the float16 and float32 types from half.hpp
 using float16 = half_float::half;
 typedef float float32;
 
-int A_subK = 16;
-int B_subN = 32;
-int B_subK = 32;
-int C_subN = 4;
-
-int A_int4 = 0;
-int B_int4 = 0;
-
-int k_align = 32;
-int n_align = 32;
-
+/**
+ * @brief Assigns the alignment parameters of the matrix multiplication
+ * based on type. 
+ */
+ 
+template <typename Ti1, typename Ti2>
+void type_align(int* k_align, int* n_align) 
+{
+	*k_align = 32;
+	if (
+        std::is_same<int8_t, Ti2>::value || 
+        std::is_same<float16, Ti2>::value) {
+		*n_align = 32;
+    }
+    else {
+		*n_align = 64;
+	}
+}
 /**
  * @brief convert norm layout to perf layout
  * norm layout: [M,K]
@@ -189,6 +197,7 @@ template void perf_layout_to_norm_layout<float16, float16>(float16 *src, float16
 		
 /**
  * @brief Utility function to choose flag from the _rknn_matmul_types
+ * and assign the AC and B native parameters based on the variable type.
  * 
  * @param To    The type of the output matrix
  * @param Ti1   The type of the first input martix
@@ -197,36 +206,86 @@ template void perf_layout_to_norm_layout<float16, float16>(float16 *src, float16
  * @return _rknn_matmul_ type flag for the matmul operation
  */
 template<typename To, typename Ti1, typename Ti2>
-_rknn_matmul_type choose_matmul_type() {
+_rknn_matmul_type choose_matmul_type(int* A_subK, int* B_subN, int* B_subK, 
+									 int* C_subN, int* A_int4, int* B_int4) {
+
     if (
         std::is_same<float16, Ti1>::value && 
         std::is_same<float16, Ti2>::value && 
         std::is_same<float16, To>::value) {
+			
+		* A_subK = 8;
+		* B_subN = 16;
+		* B_subK = 32;
+		* C_subN = 8;
+		* A_int4 = 0;
+		* B_int4 = 0;
+		
         return RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT16;
     } else if (
         std::is_same<float16, Ti1>::value && 
         std::is_same<float16, Ti2>::value && 
         std::is_same<float32, To>::value)  {
+
+		* A_subK = 8;
+		* B_subN = 16;
+		* B_subK = 32;
+		* C_subN = 4;
+		* A_int4 = 0;
+		* B_int4 = 0;
+		
         return RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32;
     } else if (
         std::is_same<int16_t, Ti1>::value && 
         std::is_same<int16_t, Ti2>::value && 
         std::is_same<int32_t, To>::value)  {
+
+		* A_subK = 8;
+		* B_subN = 16;
+		* B_subK = 32;
+		* C_subN = 4;
+		* A_int4 = 0;
+		* B_int4 = 0;
+		
         return RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32;
     } else if (
         std::is_same<float16, Ti1>::value &&
         std::is_same<int8_t, Ti2>::value  &&
         std::is_same<float16, To>::value ) { 
+
+		* A_subK = 8;
+		* B_subN = 16;
+		* B_subK = 32;
+		* C_subN = 8;
+		* A_int4 = 0;
+		* B_int4 = 0;
+		
         return RKNN_FLOAT16_MM_INT8_TO_FLOAT16; 
     } else if (
         std::is_same<int8_t, Ti1>::value && 
         std::is_same<int8_t, Ti2>::value && 
         std::is_same<int8_t, To>::value)  {
+			
+		* A_subK = 16;
+		* B_subN = 32;
+		* B_subK = 32;
+		* C_subN = 16;
+		* A_int4 = 0;
+		* B_int4 = 0;
+		
         return RKNN_INT8_MM_INT8_TO_INT8;
     } else if (
         std::is_same<int8_t, Ti1>::value && 
         std::is_same<int8_t, Ti2>::value && 
         std::is_same<int32_t, To>::value)  {
+			
+		* A_subK = 16;
+		* B_subN = 32;
+		* B_subK = 32;
+		* C_subN = 4;
+		* A_int4 = 0;
+		* B_int4 = 0;
+		
         return RKNN_INT8_MM_INT8_TO_INT32;
     } else {
         std::cout << "an unsupported combination of types:\n";
@@ -358,6 +417,7 @@ void free_matmul(_matmul_ctx* ctx) {
  * 
  * @note The shape of the result is (num_rows_a, num_cols_b)
  */
+
 template<typename To, typename Ti1, typename Ti2> 
 tensor_result matmul_npu(
     uint32_t m,
@@ -368,12 +428,22 @@ tensor_result matmul_npu(
 	bool AC_native,
 	bool B_native
 ) {
+	// Assigns the AC and B native, high performance data format parameters.
+	int A_subK, B_subN, B_subK,
+		C_subN, A_int4, B_int4;
+
+	_rknn_matmul_type mul_type = choose_matmul_type<To, Ti1, Ti2>
+								 (&A_subK, &B_subN, &B_subK,
+								  &C_subN, &A_int4, &B_int4);
+
+	// Initializes the intended and performance pointers for matrix A and B.
 	Ti1* a_intend = a;
 	Ti2* b_intend = b;
 	
 	Ti1* a_perf = 0;
 	Ti2* b_perf = 0;
 	
+	// Allocates and performs the high performance data type transformation
 	if (AC_native) {
 		a_perf = (Ti1*) malloc(m * k * sizeof(Ti1));
 		norm_layout_to_perf_layout(a, a_perf, m, k, A_subK, A_int4);
@@ -385,8 +455,9 @@ tensor_result matmul_npu(
 		b_intend = b_perf;
 	}
 	
+	// Creates and executes the matmul environment. 
     _matmul_ctx* ctx = make_matmul(
-        m, k, n, choose_matmul_type<To, Ti1, Ti2>(), AC_native, B_native
+        m, k, n, mul_type, AC_native, B_native
     );
 
     set_matrix_data(&ctx->ctx, ctx->matrixA, &ctx->io_attr.A, a_intend);
@@ -395,6 +466,7 @@ tensor_result matmul_npu(
 
     tensor_result result(ctx->ctx, ctx->matrixC);
     
+    // Restores C to the original matrix layout if applicable. 
 	if (AC_native) {
 		To* tmp = (To*) malloc(m * n * sizeof(To));
 		perf_layout_to_norm_layout((To*) result.resultMatrix->virt_addr, tmp, m, n, C_subN);
@@ -402,6 +474,8 @@ tensor_result matmul_npu(
 		free(tmp);
 
 	}
+	
+	// Frees assigned memory. 
 	if (AC_native) {
 		free(a_perf);
 	}
@@ -439,7 +513,7 @@ tensor_result matmul_npu(
 	bool AC_native,
 	bool B_native
 ) {
-	
+	// Passes the correct types to the matmul_npu function. 
 	if (type == RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT16) {
 		return matmul_npu<float16, float16, float16>(
                 m, k, n, (float16*) a, (float16*) b, AC_native, B_native);

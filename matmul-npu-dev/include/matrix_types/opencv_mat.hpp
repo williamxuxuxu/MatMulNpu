@@ -5,7 +5,7 @@
 #include "/home/orangepi/Documents/Projects/matmul-npu-dev/include/api_wrapper/matmul_api.hpp"
 #include "/home/orangepi/Documents/Projects/matmul-npu-dev/include/utils/choose_type.hpp"
 
-
+// Returns an openCV instance of a matrix
 class MatNpu : public cv::Mat {
 
     private: 

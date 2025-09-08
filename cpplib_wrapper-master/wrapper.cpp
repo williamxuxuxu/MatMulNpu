@@ -19,10 +19,12 @@
 #include <typeinfo>
 #include <opencv2/opencv.hpp>
 
+// Matrix types for openCV
 int CV_a = CV_8S;
 int CV_b = CV_8S;
 int CV_c = CV_32S;
 
+// Prints matrix of type A or B
 void print_A_cv(Ta* a, int m, int n) 
 {
 	MatNpu A(m, n, CV_a, a);
@@ -30,6 +32,7 @@ void print_A_cv(Ta* a, int m, int n)
 	std::cout << A << "\n";
 }
 
+// Prints matrix of type C
 void print_C_cv(Tc* c, int m, int n) 
 {
 	MatNpu C(m, n, CV_c, c);
@@ -37,14 +40,19 @@ void print_C_cv(Tc* c, int m, int n)
 	std::cout << C << "\n";
 }
 
+// Compares two matrices by calculating the norm of their difference.
 void c_comp(Tc* c1, Tc* c2, int m, int n) 
 {
 	MatNpu C_1(m, n, CV_c, c1);
 	MatNpu C_2(m, n, CV_c, c2);
-	
-	std::cout << "Diff Norm: " << cv::norm(C_1 - C_2, cv::NORM_L2) << "\n";
+
+//	std::cout << C_1 << "\n";
+//	std::cout << C_2 << "\n";
+
+	std::cout << "Diff Norm: " << cv::norm(C_1 - C_2, cv::NORM_L1) << "\n";
 }
 
+// Fills a buffer Tc* c with the results of matrix a and b using matmul API.
 void fill_mult(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_native)
 {
 
@@ -56,6 +64,7 @@ void fill_mult(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_
 
 }
 
+// Fills a buffer Tc* c with the results of matrix a and b using openCV.
 void fill_mult_CV(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_native)
 {
 	MatNpu A(m, k, CV_a, a);
@@ -65,6 +74,7 @@ void fill_mult_CV(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool
 	memcpy(c, C.data, m*n*sizeof(Tc));
 }
 
+// Fills a buffer Tc* c with the results of matrix a and b using naive matrix multiplication 
 void fill_mult_naive(Ta* a, Tb* b, Tc* c, int m, int k, int n)
 {
     for (int i = 0; i < m; i++) {
@@ -78,9 +88,17 @@ void fill_mult_naive(Ta* a, Tb* b, Tc* c, int m, int k, int n)
 	}
 }
 
+// Fills a buffer Tc* c by filling the matrices a and b with 0's 
+//to achieve the correct dimension alignment. 
 void fill_mult_irreg(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, bool B_native)
 {
 	
+	// Gets the alignment values based on variable type
+	int k_align;
+	int n_align;
+	type_align<Ta, Tb>(&k_align, &n_align);
+	
+	// Calculates how much fill is needed for each dimension
 	int k_fill = (int)std::ceil(k * 1.0f / k_align) * k_align;
 	int n_fill = (int)std::ceil(n * 1.0f / n_align) * n_align;
 

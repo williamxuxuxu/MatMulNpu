@@ -1,0 +1,2 @@
+m 	 	 k 	 	 n 	 	 AC 	 	 B 	 	 NPU time 	 	 CPU time 
+5 	 	 64 	 	 64 	 	 1 	 	 1 		 0.001963 	 	 0.000851

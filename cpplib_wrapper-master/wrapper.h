@@ -5,9 +5,7 @@
  *
  * This wrapper is compiled into a shared library (.so)
  * which can be then called from plain old C code.
- *
- * See an example program using this library in
- * applications/examples/cpplib_wrapper_example.c
+ * 
  */
 
 #ifndef C_WRAPPER_H_
@@ -24,6 +22,7 @@ extern "C" {
 #include <stdbool.h>
 #include "stdint.h"
 
+// Matrix types 
 typedef int8_t Ta;
 typedef int8_t Tb;
 typedef int32_t Tc;

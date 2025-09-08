@@ -23,12 +23,12 @@ int main(int argc, char **argv)
 	int trials = 5;
 //	int b_num = 2;
 	
-    int m[] = {512, 1024, 2048, 4096};
-    int k[] = {512, 1024, 2048, 4096};
-	int n[] = {512, 1024, 2048, 4096};
+    int m[] = {5};
+    int k[] = {64};
+	int n[] = {64};
 	
-	Ta min = -10;
-	Ta max = 10;
+	Ta min = -2;
+	Ta max = 2;
 	
 	int best_AC;
 	int best_B;
