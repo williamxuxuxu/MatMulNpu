@@ -105,9 +105,11 @@ void fill_mult_irreg(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, b
 	int k_diff = k_fill - k;
 	int n_diff = n_fill - n;
 		
+	// Initializes openCV matrices
 	MatNpu A(m, k, CV_a, a);
 	MatNpu B(k, n, CV_b, b);
 	
+	// Fills the matrix with zeros to achieve the correct alignment. 
 	if (k_diff > 0) {
 		cv::Mat A_k_zeros = cv::Mat::zeros(m, k_diff, CV_a);
 		cv::hconcat(A, A_k_zeros, A);
@@ -129,6 +131,7 @@ void fill_mult_irreg(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, b
 		}
 	}
 	
+	// Makes the matrix multiplication and removes the filled zeros. 
 	MatNpu C_fill = A.matmul(B, CV_c, AC_native, B_native);
 	if (n_diff > 0) {
 		cv::Mat tmp = C_fill(cv::Rect(0, 0, n, m));
@@ -138,10 +141,19 @@ void fill_mult_irreg(Ta* a, Tb* b, Tc* c, int m, int k, int n, bool AC_native, b
 
 }
 
-
+/** Multiplies a complex matrix with an array of complex matrices, concatonates them together, 
+ *  and returns a complex matrix. Complex matrices are broken up into a real and imaginary component.
+ *  The 4 matrix multiplications are done in a thread to increase speed. 
+ * 
+ *  @param Real and imaginary components of matrix A (a_r, a_i), a horizontal array of B matrices |B_1|B_2 ... |B_n_size|, 
+ *  in the form of a pointer to a set of pointers (b_r, b_i), an array of dimensions of B (n), and the size of the array. 
+ * 
+ *  Results of the matrix multiplication stored in real and imaginary components of matrix C (c_r, c_i).
+ */
 void fill_mult_cplx(Ta* a_r, Ta* a_i, Tb** b_r, Tb** b_i, Tc* c_r, Tc* c_i, 
 				int m, int k, int* n, int n_size, bool AC_native, bool B_native)
 {
+	// Constructs the final, concatonated matrix 
 	int n_sum = n[0];
 	cv::Mat B_r_final = cv::Mat(k, n[0], CV_b, b_r[0]);
 	cv::Mat B_i_final = cv::Mat(k, n[0], CV_b, b_i[0]);
@@ -152,13 +164,13 @@ void fill_mult_cplx(Ta* a_r, Ta* a_i, Tb** b_r, Tb** b_i, Tc* c_r, Tc* c_i,
 		cv::hconcat(B_i_final, cv::Mat(k, n[i], CV_b, b_i[i]), B_i_final);
 	}
 	
-//	std::cout << B_r_final << "\n" << B_i_final << "\n";
-	
+	// Prepares the 4 matrix multiplications for complex matrix multiplication	
 	Tc* A_rB_r = (Tc*) malloc(m * n_sum * sizeof(Tc));
 	Tc* A_rB_i = (Tc*) malloc(m * n_sum * sizeof(Tc));
 	Tc* A_iB_r = (Tc*) malloc(m * n_sum * sizeof(Tc));
 	Tc* A_iB_i = (Tc*) malloc(m * n_sum * sizeof(Tc));
 
+	// Prepares the 4 threads for complex matrix multiplication
 	std::vector<std::thread> thr;
 	thr.emplace_back(fill_mult_irreg, a_r, (Tb*) B_r_final.data, A_rB_r, m, k, n_sum, AC_native, B_native);
 	thr.emplace_back(fill_mult_irreg, a_r, (Tb*) B_i_final.data, A_rB_i, m, k, n_sum, AC_native, B_native);
@@ -169,12 +181,14 @@ void fill_mult_cplx(Ta* a_r, Ta* a_i, Tb** b_r, Tb** b_i, Tc* c_r, Tc* c_i,
 		t.join();
 	}
 	
+	// Performs the addition and subtraction, forming the real and imaginary components of C
 	cv::Mat C_r_mat = cv::Mat(m, n_sum, CV_c, A_rB_r) - cv::Mat(m, n_sum, CV_c, A_iB_i);
 	cv::Mat C_i_mat = cv::Mat(m, n_sum, CV_c, A_rB_i) + cv::Mat(m, n_sum, CV_c, A_iB_r);
 	
 	memcpy(c_r, C_r_mat.data, m * n_sum * sizeof(Tc));
 	memcpy(c_i, C_i_mat.data, m * n_sum * sizeof(Tc));
 
+	// Frees the allocated data
 	free(A_rB_r);
 	free(A_rB_i);
 	free(A_iB_r);
